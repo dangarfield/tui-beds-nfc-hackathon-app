@@ -3,6 +3,7 @@ package com.tuibedsnfchackathon;
 import android.app.Application;
 
 import com.facebook.react.ReactApplication;
+import es.tiarg.nfcndefreactnative.NfcNdefReactNativePackage;
 import com.learnium.RNDeviceInfo.RNDeviceInfo;
 import com.facebook.react.ReactNativeHost;
 import com.facebook.react.ReactPackage;
@@ -24,6 +25,7 @@ public class MainApplication extends Application implements ReactApplication {
     protected List<ReactPackage> getPackages() {
       return Arrays.<ReactPackage>asList(
           new MainReactPackage(),
+            new NfcNdefReactNativePackage(),
             new RNDeviceInfo()
       );
     }

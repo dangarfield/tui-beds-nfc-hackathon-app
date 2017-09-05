@@ -1,18 +1,17 @@
 import React, { Component } from 'react';
-import { AppRegistry, Alert, AsyncStorage, View, BackAndroid, ToastAndroid, Image } from 'react-native';
+import { AppRegistry, Alert, AsyncStorage, View, BackAndroid, ToastAndroid, Image, DeviceEventEmitter, Linking } from 'react-native';
 import { Container, Header, Title, Content, Footer, FooterTab, Button, Left, Right, Body, Icon, Text, Toast, Item, Label, Form, Input, Root, List, ListItem, Thumbnail, Grid, Col, Card, CardItem } from 'native-base';
 
 import PubNub from 'pubnub';
 import moment from 'moment-timezone';
 import DeviceInfo from 'react-native-device-info';
-// import { getTagId, readTag, writeTag } from 'nfc-ndef-react-native';
+import { getTagId, readTag, writeTag } from 'nfc-ndef-react-native';
 
 let pubnub;
 
 console.disableYellowBox = true;
 
 class TuiBedsNfc extends Component {
-
 
     constructor(props) {
         super(props);
@@ -28,10 +27,8 @@ class TuiBedsNfc extends Component {
             view: 'scanner'
         };
 
-
         AsyncStorage.getItem('state').then((myState) => {
-            console.log("Saved state: ", myState);
-            if (myState != null) {
+            if (myState !== null) {
                 this.setState(JSON.parse(myState));
                 this.setState({ 'status': "Config loaded" });
             } else {
@@ -39,15 +36,12 @@ class TuiBedsNfc extends Component {
             }
         });
     }
-    componentWillMount() {
-        console.log("Will mount");
+    componentDidMount() {
         this.initialisePubNub();
+        this.initialiseNfcListener();
     };
 
     saveConfigAndReinitialise() {
-        console.log(this.state);
-        // console.log(AsyncStorage);
-        // console.log(AsyncStorage.setState);
         this.setState({ 'status': "saved" });
         var persistedState = {
             subscribeKey: this.state.subscribeKey,
@@ -56,7 +50,6 @@ class TuiBedsNfc extends Component {
             sensorId: this.state.sensorId
         };
         AsyncStorage.setItem('state', JSON.stringify(persistedState));
-        // Alert.alert("Lifecycle", "Save state");
         this.initialisePubNub();
     }
     resetConfig() {
@@ -68,20 +61,17 @@ class TuiBedsNfc extends Component {
 
 
     initialisePubNub() {
-        console.log("initialisePubNub");
-        // console.log(this.state.subscribeKey);
-        // console.log(pubnub);
+        console.log("Initialising PubNub");
         this.setState({ 'status': "Config loaded" });
 
         if (pubnub != undefined) {
-            console.log('clearing pubnub');
             pubnub.unsubscribeAll();
             pubnub.stop();
         }
         let uid = DeviceInfo.getUniqueID();
         let dname = DeviceInfo.getDeviceName();
-        let uuid = dname + '_' + uid; //Unknown_9e4dfd21f2eb81d1
-        console.log('uuid', uuid);
+        let uuid = dname + '_' + uid; //eg, Dan's Phone_9e4dfd21f2eb81d1
+
         pubnub = new PubNub({
             subscribeKey: this.state.subscribeKey,
             publishKey: this.state.publishKey,
@@ -102,125 +92,127 @@ class TuiBedsNfc extends Component {
 
         pubnub.addListener({
             message: function (message) {
-                // console.log(message);
-                // console.log(message.message);
                 let text = message.message;
-                // console.log(classThis.setState)
-                //text.time = new Date(message.timetoken)).toGMTString();
-                console.log('Message received');
-
-                console.log(message);
-                console.log(message.timetoken);
-
-                console.log('Time format');
-                text.date = new Date(message.timetoken / 1e4).toGMTString();
-
-
-                let d = new Date(message.timetoken / 1e4);
-                // console.log('d', d);
-                // console.log(moment);
-                let m = moment(d);
-                // console.log('m', m);
-                let t = m.tz("Europe/London");
-                // console.log('t', t);
-                let f = t.format('h:mm a');
-                // console.log('f', f);
-
-
-                text.time = f;
-                console.log(text);
+                console.log('Message received', message);
+                text.time = moment(new Date(message.timetoken / 1e4)).tz("Europe/London").format('h:mm a');
+                console.log("Message parse", text);
                 ToastAndroid.show(text.tag + ' -> ' + text.sensor, ToastAndroid.SHORT);
-                // Toast.show({ text: text.tag + ' -> ' + text.sensor, duration: 1000, position: 'top' });
 
-                // console.log('getFirstImageURL', getFirstImageURL);
-                // //has already been downloaded
-                // getFirstImageURL(text.tag).then(function (v) {
-                //   console.log('Image for: ' + text.tag);
-                //   console.log(v);
-                // });
-
-                // var newHistory = [text].concat(classThis.state.history);
                 var newHistory = [text, ...classThis.state.history];
                 classThis.setState({ history: newHistory, pubnubStatus: "connected" });
-                // classThis.setState({ status: "Tag received" });
             },
             status: function (s) {
-                // let category = s.category; // PNConnectedCategory
-                // let operation = s.operation; // PNSubscribeOperation
                 console.log("PubNub Status Event Listener", s);
-                if (s.error == true) {
-                    console.log("PubNub Error - true");
+                if (s.error === true) {
                     classThis.setState({ 'pubnubStatus': "error" });
                 } else {
-                    console.log("PubNub Error - false");
                     classThis.setState({ 'pubnubStatus': "connected" });
                 }
             }
         });
-        console.log('subscribe - starting');
         pubnub.subscribe({
             channels: [this.state.channelId]
         });
-
-
         this.setState({ 'status': "PubNub: Connected" });
 
     }
 
+    initialiseNfcListener() {
+        console.log('Initialise Nfc Listener');
+
+        DeviceEventEmitter.addListener('onTagError', function (e) {
+            console.log('NFC onTagError', e);
+            Alert.alert(JSON.stringify(e));
+            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Trigger tag read
+        });
+
+        DeviceEventEmitter.addListener('onTagDetected', function (e) {
+            console.log('NFC onTagDetected', e);
+            Alert.alert(JSON.stringify(e));
+            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Trigger tag read
+            //this.readTagData();
+        });
+
+        DeviceEventEmitter.addListener('onTagRead', (e) => {
+            console.log('NFC onTagRead', e);
+            Alert.alert(JSON.stringify(e));
+            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Set state from read
+            // let id = e.tagid;
+            // let data = e.tagValue;
+            // this.setState({ nfcId: id, nfcValue: data, tagValue: data });
+
+            // broadcast message if NOT in edit mode
+            // if(this.state.view != 'edit') {
+            //     this.publish();
+            // }
+        });
+
+        DeviceEventEmitter.addListener('onTagWrite', (e) => {
+            console.log('NFC onTagWrite', e);
+            Alert.alert(JSON.stringify(e));
+            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Set state from write
+            // let id = e.tagid;
+            // let data = e.tagValue;
+            // this.setState({ nfcId: id, nfcValue: data, tagValue: data });
+
+            // broadcast message if NOT in edit mode
+            // if(this.state.view != 'edit') {
+            //     this.publish();
+            // }
+        });
+    }
+
+    readTagId() {
+        getTagId();
+    }
+    readTagData() {
+        readTag();
+    }
+    writeTagData() {
+        let nfcValue = this.state.nfcValue;
+        console.log("Writing NFC Value", nfcValue);
+        writeTag([nfcValue]);
+    }
 
     _handleSubscribeKeyChange = (key) => {
-        this.setState({ subscribeKey: key });
-        this.setState({ status: "Updating subscribeKey" });
+        this.setState({ subscribeKey: key, status: "Updating subscribeKey" });
         setTimeout(() => this.saveConfigAndReinitialise(), 0);
     };
     _handlePublishKeyChange = (key) => {
-        this.setState({ publishKey: key });
-        this.setState({ status: "Updating publishKey" });
+        this.setState({ publishKey: key, status: "Updating publishKey" });
         setTimeout(() => this.saveConfigAndReinitialise(), 0);
     };
     _handleChannelIdChange = (id) => {
-        this.setState({ channelId: id });
-        this.setState({ status: "Updating channelId" });
+        this.setState({ channelId: id, status: "Updating channelId" });
         setTimeout(() => this.saveConfigAndReinitialise(), 0);
     };
     _handleSensorIdChange = (id) => {
-        this.setState({ sensorId: id });
-        this.setState({ status: "Updating sensorId" });
+        this.setState({ sensorId: id, status: "Updating sensorId" });
         setTimeout(() => this.saveConfigAndReinitialise(), 0);
     };
     _handleTagValueChange = (text) => {
-        this.setState({ tagValue: text });
-        this.setState({ status: "Updated tag value" });
+        this.setState({ tagValue: text, status: "Updated tag value" });
     };
-    _focusNextField(nextField) {
-        this.refs[nextField].focus()
+    _handleNfcValueChange = (text) => {
+        this.setState({ nfcValue: text, status: "Updated nfc value" });
     }
 
     sendTestTag = () => {
-        console.log('generate test tag')
         let names = ["Tyrion Lannister", "Cersei Lannister", "Daenerys Targaryen", "Jon Snow", "Sansa Stark", "Arya Stark", "Jorah Mormont", "Jaime Lannister", "Samwell Tarly", "Theon Greyjoy"];
-        //let newTag = "" + Math.floor(100000000 + Math.random() * 900000000)
         let newTag = names[Math.floor(Math.random() * names.length)];
-
-        console.log(newTag);
-        //TODO setstate not working here
-        console.log(this.setState);
-        console.log(this.state);
+        //let newTag = "" + Math.floor(100000000 + Math.random() * 900000000) // Or random number
         this.setState({ tagValue: newTag });
-
-        console.log(this.publish);
         setTimeout(() => this.publish(), 0);
 
     }
     publish = () => {
-        console.log('publishing tag')
+        console.log('Publishing tag');
         let classThis = this;
 
         pubnub.publish({
             channel: this.state.channelId,
             message: { "sensor": this.state.sensorId, "tag": this.state.tagValue }
         }, function (status, response) {
-            console.log(status, response);
             if (status.error) {
                 Alert.alert(
                     'Error!',
@@ -240,21 +232,41 @@ class TuiBedsNfc extends Component {
                 return (
                     <Content padder>
 
-                        <Image source={require('./img/nfc-icon.png')}
-                            style={{ height: 380, width: null, flex: 1 }} />
-
                         <Card>
                             <CardItem>
                                 <Left>
                                     <Icon name='alert' />
                                     <Body>
-                                        <Text>Scan your tags</Text>
+                                        <Text>Scan your tags -&nbsp;
+                                            <Text style={{ color: 'blue', textDecorationLine: 'underline' }}
+                                                onPress={() => Linking.openURL('https://github.com/dangarfield/tui-beds-nfc-hackathon-app/blob/master/README.md')}>
+                                                Instructions
+                                            </Text>
+                                        </Text>
                                     </Body>
                                 </Left>
                             </CardItem>
                         </Card>
 
-                    </Content>);
+                        <Image source={require('./img/nfc-icon.png')}
+                            style={{ height: 350, width: null, flex: 1 }} />
+
+                        {this.state.history.length > 0 &&
+                            <ListItem avatar>
+                                <Left>
+                                    {/*<Thumbnail source={{ uri: 'https://robohash.org/' + item.tag }} />*/}
+                                    <Thumbnail source={{ uri: 'https://first-image-service-npttfcvrns.now.sh/' + this.state.history[0].tag }} />
+                                </Left>
+                                <Body>
+                                    <Text>{this.state.history[0].tag}</Text>
+                                    <Text note>Checked in at: {this.state.history[0].sensor}</Text>
+                                </Body>
+                                <Right>
+                                    <Text note>{this.state.history[0].time}</Text>
+                                </Right>
+                            </ListItem>
+                        }
+                    </Content >);
                 break;
             case 'history':
                 console.log('View: history');
@@ -347,7 +359,7 @@ class TuiBedsNfc extends Component {
                             onPress={this.resetConfig}>
                             <Text>
                                 Reset Config
-              </Text>
+                            </Text>
                         </Button>
                     </Content>);
                 break;
@@ -356,7 +368,6 @@ class TuiBedsNfc extends Component {
                 return (
                     <Content>
                         <Content padder>
-
 
                             <Card>
                                 <CardItem>
@@ -385,7 +396,7 @@ class TuiBedsNfc extends Component {
                                         onPress={this.publish}>
                                         <Text>
                                             Send Custom Tag
-                      </Text>
+                                        </Text>
                                     </Button>
                                 </Content>
                             </Col>
@@ -395,7 +406,69 @@ class TuiBedsNfc extends Component {
                                         onPress={this.sendTestTag}>
                                         <Text>
                                             Send Generated Tag
-                  </Text>
+                                        </Text>
+                                    </Button>
+                                </Content>
+                            </Col>
+                        </Grid>
+
+
+
+                    </Content>);
+                break;
+
+            case 'edit':
+                console.log('View: edit');
+                return (
+                    <Content>
+                        <Content padder>
+
+
+                            <Card>
+                                <CardItem>
+                                    <Left>
+                                        <Icon name='alert' />
+                                        <Body>
+                                            <Text>Read and write to NFC tags</Text>
+                                        </Body>
+                                    </Left>
+                                </CardItem>
+                            </Card>
+
+                            <Item stackedLabel>
+                                <Label>NFC ID</Label>
+                                <Input disabled
+                                    placeholder='The NFC ID'
+                                    value={this.state.nfcId}
+                                    />
+                            </Item>
+                            <Item stackedLabel>
+                                <Label>NFC Value</Label>
+                                <Input
+                                    placeholder='The NFC body content'
+                                    value={this.state.nfcValue}
+                                    onChangeText={this._handleNfcValueChange}
+                                    />
+                            </Item>
+                        </Content>
+                        <Grid>
+                            <Col>
+                                <Content padder>
+                                    <Button block
+                                        onPress={this.readTagData}>
+                                        <Text>
+                                            Read the tag
+                                        </Text>
+                                    </Button>
+                                </Content>
+                            </Col>
+                            <Col>
+                                <Content padder>
+                                    <Button block
+                                        onPress={this.writeTagData}>
+                                        <Text>
+                                            Write to tag
+                                        </Text>
                                     </Button>
                                 </Content>
                             </Col>
@@ -462,9 +535,11 @@ class TuiBedsNfc extends Component {
 
                     {this.renderView()}
 
+                    {/*
                     <Text>
-                        {/*JSON.stringify(this.state)*/}
+                        JSON.stringify(this.state)
                     </Text>
+                    */}
 
                 </Content>
 
@@ -474,25 +549,31 @@ class TuiBedsNfc extends Component {
                             active={this.state.view === 'scanner'}
                             onPress={() => this.setState({ view: 'scanner' })}>
                             <Icon name="wifi" />
-                            <Text>Scanner</Text>
+                            <Text>Scan</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'history'}
                             onPress={() => this.setState({ view: 'history' })}>
                             <Icon name="chatboxes" />
-                            <Text>History</Text>
+                            <Text>Logs</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'config'}
                             onPress={() => this.setState({ view: 'config' })}>
                             <Icon name="settings" />
-                            <Text>Settings</Text>
+                            <Text>Config</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'test'}
                             onPress={() => this.setState({ view: 'test' })}>
                             <Icon name="bug" />
                             <Text>Test</Text>
+                        </Button>
+                        <Button vertical
+                            active={this.state.view === 'edit'}
+                            onPress={() => this.setState({ view: 'edit' })}>
+                            <Icon name="create" />
+                            <Text>Edit</Text>
                         </Button>
                     </FooterTab>
                 </Footer>
