@@ -6,6 +6,7 @@ import PubNub from 'pubnub';
 import moment from 'moment-timezone';
 import DeviceInfo from 'react-native-device-info';
 import { getTagId, readTag, writeTag } from 'nfc-ndef-react-native';
+import codePush from "react-native-code-push";
 
 let pubnub;
 
@@ -595,4 +596,5 @@ export default class tuibedsnfcroot extends Component {
         );
     }
 }
-AppRegistry.registerComponent('tuibedsnfchackathon', () => tuibedsnfcroot);
+let codePushOptions = { checkFrequency: codePush.CheckFrequency.ON_APP_RESUME };
+AppRegistry.registerComponent('tuibedsnfchackathon', () => codePush(codePushOptions)(tuibedsnfcroot));

@@ -73,6 +73,7 @@ import com.android.build.OutputFile
  */
 
 apply from: "../../node_modules/react-native/react.gradle"
+apply from: "../../node_modules/react-native-code-push/android/codepush.gradle"
 
 /**
  * Set this to true to create two separate APKs instead of one:
@@ -103,6 +104,16 @@ android {
             abiFilters "armeabi-v7a", "x86"
         }
     }
+    signingConfigs {
+        release {
+            if (project.hasProperty('TUI_BED_HACKATHON_RELEASE_STORE_FILE')) {
+                storeFile file(TUI_BED_HACKATHON_RELEASE_STORE_FILE)
+                storePassword TUI_BED_HACKATHON_RELEASE_STORE_PASSWORD
+                keyAlias TUI_BED_HACKATHON_RELEASE_KEY_ALIAS
+                keyPassword TUI_BED_HACKATHON_RELEASE_KEY_PASSWORD
+            }
+        }
+    }
     splits {
         abi {
             reset()
@@ -112,9 +123,18 @@ android {
         }
     }
     buildTypes {
+        debug {
+            buildConfigField "String", "CODEPUSH_KEY", '""'
+        }
+
+        releaseStaging {
+            buildConfigField "String", "CODEPUSH_KEY", '"6kLEj64eeJ9nNLJXF2Ef32t1n8U133f462f2-9b30-41c7-a3a9-7d5946e9d8f2"'
+        }
         release {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            buildConfigField "String", "CODEPUSH_KEY", '"C_R0BpOJfi69QmGREGRVsQnGRhVR33f462f2-9b30-41c7-a3a9-7d5946e9d8f2"'
+            signingConfig signingConfigs.release
         }
     }
     // applicationVariants are e.g. debug, release
@@ -133,6 +153,7 @@ android {
 }
 
 dependencies {
+    compile project(':react-native-code-push')
     compile project(':nfc-ndef-react-native')
     compile project(':react-native-device-info')
     compile fileTree(dir: "libs", include: ["*.jar"])
