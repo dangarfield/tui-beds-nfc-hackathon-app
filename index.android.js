@@ -25,7 +25,8 @@ class TuiBedsNfc extends Component {
             status: "Loading",
             pubnubStatus: "loading",
             history: [],
-            view: 'scanner'
+            view: 'scanner',
+            version: DeviceInfo.getVersion()
         };
 
         AsyncStorage.getItem('state').then((myState) => {
@@ -224,7 +225,7 @@ class TuiBedsNfc extends Component {
     }
 
     sendTestTag = () => {
-        let names = ["Daenerys Targaryen","Khal Drogo","Grey Worm","Jon Snow","Sansa Stark","Arya Stark","Bran Stark","Brienne of Tarth","Podrick Payne","Tyrion Lannister","Bronn","Cersei Lannister","Gregor Clegane","Jaime Lannister","Jorah Mormont","Davos Seaworth","Samwell Tarly","Hodor","Tormund Giantsbane","Theon Greyjoy"];
+        let names = ["Daenerys Targaryen", "Khal Drogo", "Grey Worm", "Jon Snow", "Sansa Stark", "Arya Stark", "Bran Stark", "Brienne of Tarth", "Podrick Payne", "Tyrion Lannister", "Bronn", "Cersei Lannister", "Gregor Clegane", "Jaime Lannister", "Jorah Mormont", "Davos Seaworth", "Samwell Tarly", "Hodor", "Tormund Giantsbane", "Theon Greyjoy"];
         let newTag = names[Math.floor(Math.random() * names.length)];
         //let newTag = "" + Math.floor(100000000 + Math.random() * 900000000) // Or random number
         this.setState({ tagValue: newTag });
@@ -387,7 +388,8 @@ class TuiBedsNfc extends Component {
                                 Reset Config
                             </Text>
                         </Button>
-                    </Content>);
+                        <Label style={{ textAlign: 'right' }}>Version: {this.state.version}</Label>
+                    </Content >);
                 break;
             case 'test':
                 console.log('View: test');
