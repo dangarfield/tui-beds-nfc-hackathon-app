@@ -6,7 +6,7 @@ import PubNub from 'pubnub';
 import moment from 'moment-timezone';
 import DeviceInfo from 'react-native-device-info';
 import { getTagId, readTag, writeTag } from 'nfc-ndef-react-native';
-import codePush from "react-native-code-push";
+// import codePush from "react-native-code-push";
 
 let pubnub;
 
@@ -36,6 +36,10 @@ class TuiBedsNfc extends Component {
                 this.setState({ 'status': "Base config loaded" });
             }
         });
+
+        this.writeTagData = this.writeTagData.bind(this);
+        this.initialiseNfcListener = this.initialiseNfcListener.bind(this);
+        this.removeReadTagData = this.removeReadTagData.bind(this);
     }
     componentDidMount() {
         this.initialisePubNub();
@@ -121,58 +125,76 @@ class TuiBedsNfc extends Component {
     initialiseNfcListener() {
         console.log('Initialise Nfc Listener');
 
+        var classThis = this;
+
         DeviceEventEmitter.addListener('onTagError', function (e) {
             console.log('NFC onTagError', e);
-            Alert.alert(JSON.stringify(e));
-            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Trigger tag read
+            // Don't need to visually warn about an error
+            // Alert.alert('onTagError', JSON.stringify(e));
+            // ToastAndroid.show('onTagError -> ' + JSON.stringify(e), ToastAndroid.SHORT);
         });
+
 
         DeviceEventEmitter.addListener('onTagDetected', function (e) {
             console.log('NFC onTagDetected', e);
-            Alert.alert(JSON.stringify(e));
-            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Trigger tag read
-            //this.readTagData();
+            // Don't need to handle onTagDetected - read and write works fine
+            // Alert.alert('onTagDetected', JSON.stringify(e));
         });
 
         DeviceEventEmitter.addListener('onTagRead', (e) => {
             console.log('NFC onTagRead', e);
-            Alert.alert(JSON.stringify(e));
-            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Set state from read
-            // let id = e.tagid;
-            // let data = e.tagValue;
-            // this.setState({ nfcId: id, nfcValue: data, tagValue: data });
+            // Alert.alert('onTagRead', JSON.stringify(e));
 
-            // broadcast message if NOT in edit mode
-            // if(this.state.view != 'edit') {
-            //     this.publish();
-            // }
+            console.log('NFC onTagRead id compare: ' + classThis.state.nfcId + " - " + e.id);
+            if (classThis.state.nfcId != e.id) {
+                ToastAndroid.show('Tag Read -> ' + e.value, ToastAndroid.SHORT);
+
+                let id = e.id;
+                let data = e.value;
+                console.log('id', id);
+                console.log('data', data);
+                classThis.setState({ nfcId: e.id, nfcValue: e.value, tagValue: e.value });
+
+                // broadcast message if NOT in edit mode
+                if (this.state.view != 'edit' && this.state.view != 'write') {
+                    this.publish();
+                }
+            }
+
+            // this.readTagData();
         });
 
         DeviceEventEmitter.addListener('onTagWrite', (e) => {
             console.log('NFC onTagWrite', e);
-            Alert.alert(JSON.stringify(e));
-            // TODO, UNTESTED WHILST USING EMULATOR ONLY - Set state from write
-            // let id = e.tagid;
-            // let data = e.tagValue;
-            // this.setState({ nfcId: id, nfcValue: data, tagValue: data });
+            // Alert.alert('onTagWrite', JSON.stringify(e));
 
-            // broadcast message if NOT in edit mode
-            // if(this.state.view != 'edit') {
-            //     this.publish();
-            // }
+            // ToastAndroid.show('onTagWrite -> ' + JSON.stringify(e), ToastAndroid.SHORT);
+            let id = e.id;
+            let data = e.value;
+            console.log('id', id);
+            console.log('data', data);
+            classThis.setState({ nfcId: e.id, nfcValue: e.value, tagValue: e.value, view: 'edit' });
+
+            ToastAndroid.show('Tag written successfully', ToastAndroid.SHORT);
+
+            this.readTagData();
         });
+
+        this.readTagData();
     }
 
-    readTagId() {
-        getTagId();
-    }
     readTagData() {
         readTag();
     }
     writeTagData() {
-        let nfcValue = this.state.nfcValue;
+        console.log("state", this.state);
+        let nfcValue = this.state.nfcValue !== undefined ? this.state.nfcValue : "";
         console.log("Writing NFC Value", nfcValue);
+        this.setState({ view: 'write' });
         writeTag([nfcValue]);
+    }
+    removeReadTagData() {
+        this.setState({ nfcId: '', nfcValue: '', tagValue: '' });
     }
 
     _handleSubscribeKeyChange = (key) => {
@@ -197,9 +219,12 @@ class TuiBedsNfc extends Component {
     _handleNfcValueChange = (text) => {
         this.setState({ nfcValue: text, status: "Updated nfc value" });
     }
+    _handleViewChange = (view) => {
+        this.setState({ view: view, nfcId: '', nfcValue: '', tagValue: '' });
+    }
 
     sendTestTag = () => {
-        let names = ["Tyrion Lannister", "Cersei Lannister", "Daenerys Targaryen", "Jon Snow", "Sansa Stark", "Arya Stark", "Jorah Mormont", "Jaime Lannister", "Samwell Tarly", "Theon Greyjoy"];
+        let names = ["Daenerys Targaryen","Khal Drogo","Grey Worm","Jon Snow","Sansa Stark","Arya Stark","Bran Stark","Brienne of Tarth","Podrick Payne","Tyrion Lannister","Bronn","Cersei Lannister","Gregor Clegane","Jaime Lannister","Jorah Mormont","Davos Seaworth","Samwell Tarly","Hodor","Tormund Giantsbane","Theon Greyjoy"];
         let newTag = names[Math.floor(Math.random() * names.length)];
         //let newTag = "" + Math.floor(100000000 + Math.random() * 900000000) // Or random number
         this.setState({ tagValue: newTag });
@@ -437,13 +462,7 @@ class TuiBedsNfc extends Component {
                             </Card>
 
                             <Item stackedLabel>
-                                <Label>NFC ID</Label>
-                                <Input disabled
-                                    placeholder='The NFC ID'
-                                    value={this.state.nfcId}
-                                    />
-                            </Item>
-                            <Item stackedLabel>
+                                <Label>NFC ID - {this.state.nfcId}</Label>
                                 <Label>NFC Value</Label>
                                 <Input
                                     placeholder='The NFC body content'
@@ -456,13 +475,14 @@ class TuiBedsNfc extends Component {
                             <Col>
                                 <Content padder>
                                     <Button block
-                                        onPress={this.readTagData}>
+                                        onPress={this.removeReadTagData}>
                                         <Text>
-                                            Read the tag
+                                            Re-read tag
                                         </Text>
                                     </Button>
                                 </Content>
                             </Col>
+
                             <Col>
                                 <Content padder>
                                     <Button block
@@ -476,7 +496,22 @@ class TuiBedsNfc extends Component {
                         </Grid>
 
 
-
+                    </Content>);
+                break;
+            case 'write':
+                console.log('View: write');
+                return (
+                    <Content padder>
+                        <Card>
+                            <CardItem>
+                                <Left>
+                                    <Icon name='alert' />
+                                    <Body>
+                                        <Text>Place nfc tag on phone to write - {this.state.nfcValue}</Text>
+                                    </Body>
+                                </Left>
+                            </CardItem>
+                        </Card>
                     </Content>);
                 break;
         }
@@ -536,11 +571,11 @@ class TuiBedsNfc extends Component {
 
                     {this.renderView()}
 
-                    {/*
+
                     <Text>
-                        JSON.stringify(this.state)
+                        {/*JSON.stringify(this.state)*/}
                     </Text>
-                    */}
+
 
                 </Content>
 
@@ -548,31 +583,31 @@ class TuiBedsNfc extends Component {
                     <FooterTab>
                         <Button vertical
                             active={this.state.view === 'scanner'}
-                            onPress={() => this.setState({ view: 'scanner' })}>
+                            onPress={() => this._handleViewChange('scanner')}>
                             <Icon name="wifi" />
                             <Text>Scan</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'history'}
-                            onPress={() => this.setState({ view: 'history' })}>
+                            onPress={() => this._handleViewChange('history')}>
                             <Icon name="chatboxes" />
                             <Text>Logs</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'config'}
-                            onPress={() => this.setState({ view: 'config' })}>
+                            onPress={() => this._handleViewChange('config')}>
                             <Icon name="settings" />
                             <Text>Config</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'test'}
-                            onPress={() => this.setState({ view: 'test' })}>
+                            onPress={() => this._handleViewChange('test')}>
                             <Icon name="bug" />
                             <Text>Test</Text>
                         </Button>
                         <Button vertical
                             active={this.state.view === 'edit'}
-                            onPress={() => this.setState({ view: 'edit' })}>
+                            onPress={() => this._handleViewChange('edit')}>
                             <Icon name="create" />
                             <Text>Edit</Text>
                         </Button>
@@ -596,5 +631,6 @@ export default class tuibedsnfcroot extends Component {
         );
     }
 }
-let codePushOptions = { checkFrequency: codePush.CheckFrequency.ON_APP_RESUME };
-AppRegistry.registerComponent('tuibedsnfchackathon', () => codePush(codePushOptions)(tuibedsnfcroot));
+// let codePushOptions = { checkFrequency: codePush.CheckFrequency.ON_APP_RESUME };
+// AppRegistry.registerComponent('tuibedsnfchackathon', () => codePush(codePushOptions)(tuibedsnfcroot));
+AppRegistry.registerComponent('tuibedsnfchackathon', () => tuibedsnfcroot);
