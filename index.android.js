@@ -5,7 +5,7 @@ import { Container, Header, Title, Content, Footer, FooterTab, Button, Left, Rig
 import PubNub from 'pubnub';
 import moment from 'moment-timezone';
 import DeviceInfo from 'react-native-device-info';
-import { getTagId, readTag, writeTag } from 'nfc-ndef-react-native';
+import { readTag, writeTag, isNfcAvailable } from 'nfc-ndef-react-native';
 // import codePush from "react-native-code-push";
 
 let pubnub;
@@ -128,6 +128,12 @@ class TuiBedsNfc extends Component {
 
         var classThis = this;
 
+        isNfcAvailable((available, msg) => {
+            if (!available) {
+                Alert.alert('NFC Unavailable', msg);
+            }
+        });
+
         DeviceEventEmitter.addListener('onTagError', function (e) {
             console.log('NFC onTagError', e);
             // Don't need to visually warn about an error
@@ -147,7 +153,7 @@ class TuiBedsNfc extends Component {
             // Alert.alert('onTagRead', JSON.stringify(e));
 
             console.log('NFC onTagRead id compare: ' + classThis.state.nfcId + " - " + e.id);
-            if (classThis.state.nfcId != e.id) {
+            if (classThis.state.nfcId != e.id && e.value !== '') {
                 ToastAndroid.show('Tag Read -> ' + e.value, ToastAndroid.SHORT);
 
                 let id = e.id;
@@ -236,19 +242,24 @@ class TuiBedsNfc extends Component {
         console.log('Publishing tag');
         let classThis = this;
 
-        pubnub.publish({
-            channel: this.state.channelId,
-            message: { "sensor": this.state.sensorId, "tag": this.state.tagValue }
-        }, function (status, response) {
-            if (status.error) {
-                Alert.alert(
-                    'Error!',
-                    'Message Not Sent',
-                );
-            } else {
-                classThis.setState({ status: "Tag sent" });
-            }
-        });
+        if (this.state.tagValue.length === 0) {
+            console.log('Tag Value empty, not publishing');
+        } else {
+            pubnub.publish({
+                channel: this.state.channelId,
+                message: { "sensor": this.state.sensorId, "tag": this.state.tagValue }
+            }, function (status, response) {
+                if (status.error) {
+                    Alert.alert(
+                        'Error!',
+                        'Message Not Sent',
+                    );
+                } else {
+                    classThis.setState({ status: "Tag sent" });
+                }
+            });
+        }
+
     }
 
 
