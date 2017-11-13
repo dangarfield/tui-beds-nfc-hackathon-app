@@ -128,11 +128,12 @@ class TuiBedsNfc extends Component {
 
         var classThis = this;
 
-        isNfcAvailable((available, msg) => {
-            if (!available) {
-                Alert.alert('NFC Unavailable', msg);
-            }
-        });
+        // Commenting out as it the callback isn't working as expected and can't test locally - Quickfix
+        // isNfcAvailable((available, msg) => {
+        //     if (!available) {
+        //         Alert.alert('NFC Unavailable', msg);
+        //     }
+        // });
 
         DeviceEventEmitter.addListener('onTagError', function (e) {
             console.log('NFC onTagError', e);
